@@ -47,10 +47,38 @@ class pyStructTS(object):
         self.dim_dscalar = TS.timeder_mat(TimePeriod, ntimeintervalsspectral)
         self.dimless_dscalar = self.dim_dscalar/wa
 
+        self.disp_velo_hist_vec = np.matrix(np.zeros((4*ntimeintervalsspectral, 4*ntimeintervalsspectral)))
 
 
 
-    def set_dimless_dscalar(self, omega):
+
+
+
+
+
+
+    def preprocess(self):
+
+        # LHS
+
+        self.set_P_mat()
+        self.set_glo_K()
+        self.set_glo_M()
+
+        self.set_glo_M_inv()
+
+        # RHS
+
+        self.get_set_MaIndependent_coeff()
+
+
+
+
+
+
+
+
+    def set_omega(self, omega):
 
         wa = self.wa
 
@@ -61,24 +89,47 @@ class pyStructTS(object):
         self.dim_dscalar = TS.timeder_mat(TimePeriod, ntimeintervalsspectral)
         self.dimless_dscalar = self.dim_dscalar/wa
 
-    def set_dimless_dscalar_and_evaluate(self, omega):
+    def set_omega_and_evaluate(self, omega):
 
         # Notice: we must re-evaluate CFD to get new f before this step
 
-        self.set_dimless_dscalar(omega)
+        self.set_omega(omega)
 
         self.set_P_mat()
 
-        self.res()
+        res_reduced = self.res_reduced()
+
+        return res_reduced
 
 
-    def set_disp_and_evaluate(self,disp_velo_hist_vec):
+    def set_disp_and_evaluate(self,disp):
 
         # Notice: we must re-evaluate CFD to get new f before this step
 
-        self.disp_velo_hist_vec = disp_velo_hist_vec
+        ntimeintervalsspectral = self.ntimeintervalsspectral
+        dimless_dscalar = self.dimless_dscalar
 
-        self.res()
+        hb = np.matrix( np.zeros((ntimeintervalsspectral, 1)) )
+        alpha = np.matrix( np.zeros((ntimeintervalsspectral, 1)) )
+
+        for i in xrange(ntimeintervalsspectral):
+
+            hb[i, 0] = disp[2*i, 0]
+            alpha[i, 0] = disp[2*i+1, 0]
+
+        hb_velo = dimless_dscalar.dot(hb)
+        alpha_velo = dimless_dscalar.dot(alpha)
+
+        for i in xrange(ntimeintervalsspectral):
+
+            self.disp_velo_hist_vec[4*i  , 0] = hb[i, 0]
+            self.disp_velo_hist_vec[4*i+1, 0] = alpha[i, 0]
+            self.disp_velo_hist_vec[4*i+2, 0] = hb_velo[i, 0]
+            self.disp_velo_hist_vec[4*i+3, 0] = alpha_velo[i, 0]
+
+        res_reduced = self.res_reduced()
+
+        return res_reduced
 
 
     def set_Ma_and_evaluate(self, Ma):
@@ -89,7 +140,9 @@ class pyStructTS(object):
 
         self.set_scaled_load()
 
-        self.res()
+        res_reduced = self.res_reduced()
+
+        return res_reduced
 
 
 
@@ -209,6 +262,26 @@ class pyStructTS(object):
 
         self.Res_norm = np.sqrt(np.transpose(self.Res).dot(self.Res)[0,0])
 
+    def res_reduced(self):
+
+        "smaller size res: drop the part that define dot(u) = D u since this part is forced to be true"
+
+        self.res()
+        Res = self.Res
+        ntimeintervalsspectral = self.ntimeintervalsspectral
+
+        res_reduced = np.matrix(np.zeros((2*ntimeintervalsspectral, 1)))
+
+        for i in xrange(ntimeintervalsspectral):
+            res_reduced[2*i,   0] = Res[4*i + 2, 0]
+            res_reduced[2*i+1, 0] = Res[4*i + 3, 0]
+
+        return res_reduced
+
+
+
+
+
 
 
 
@@ -318,7 +391,7 @@ class pyStructTS(object):
 
                 self.res()
 
-                print "Res_norm", self.Res_norm
+                #print "Res_norm", self.Res_norm
 
             self.get_disp_4CFD()
 

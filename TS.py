@@ -22,8 +22,6 @@ def timeder_mat(T,n):
                 if (i!=j):
                     D[i,j] = 0.5*(-1)**(i-j)/math.sin(np.pi*(i-j)/n)
 
-    print("D dimless",D)
-
     D = D*2.0*np.pi/T
 
     return D
